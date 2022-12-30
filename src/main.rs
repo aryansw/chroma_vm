@@ -1,6 +1,8 @@
+#![feature(variant_count)]
 use anyhow::Context;
 use clap::Parser;
 
+pub mod instruction;
 pub mod vm;
 
 use vm::run_program;
@@ -15,12 +17,12 @@ struct Args {
     // TODO: Change this to make it optional
     /// The input image to run
     #[arg(short, long)]
-    input: String,
+    input: Option<String>,
 
     // TODO: Change this to make it optional
     /// The output image to run, defaults to 'output.png'
     #[arg(short, long, default_value = "output.png")]
-    output: String,
+    output: Option<String>,
 
     /// The new program image, defaults to 'program.png'
     #[arg(long, default_value = "program_output.png")]
@@ -29,10 +31,12 @@ struct Args {
 
 fn main() {
     let args = Args::parse();
-    let input = image::open(args.input)
-        .context("Failed reading input image")
-        .unwrap()
-        .into_rgb8();
+    let input = args.input.map(|path| {
+        image::open(path)
+            .context("Failed reading input image")
+            .unwrap()
+            .into_rgb8()
+    });
     let program = image::open(args.program)
         .context("Failed reading program image")
         .unwrap()
@@ -40,10 +44,14 @@ fn main() {
     let (program, output) = run_program(program, input)
         .context("Failed to run program")
         .unwrap();
-    output
-        .save(args.output)
-        .context("Unable to save output image")
-        .unwrap();
+    output.map(|image| {
+        args.output.map(|path| {
+            image
+                .save(path)
+                .context("Unable to save output image")
+                .unwrap()
+        })
+    });
     program
         .save(args.program_output)
         .context("Unable to save program output image")

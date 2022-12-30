@@ -6,7 +6,8 @@ cargo run --target x86_64-pc-windows-msvc -- -p 'program.jpg' -i 'input.png'
 
 ## Building for wasm
 
-I'll eventually get around to making a CI build script for this. But this works for now
+I'll eventually get around to making a CI build script for this. But these are the general steps:
+
 ### Check:
 
 ```
