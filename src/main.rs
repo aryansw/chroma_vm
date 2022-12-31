@@ -2,6 +2,7 @@
 use anyhow::Context;
 use clap::Parser;
 
+pub mod error;
 pub mod instruction;
 pub mod vm;
 

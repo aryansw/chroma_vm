@@ -6,6 +6,7 @@ use vm::run_program;
 
 use wasm_bindgen::prelude::*;
 
+pub mod error;
 pub mod instruction;
 pub mod vm;
 

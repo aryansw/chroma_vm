@@ -17,6 +17,7 @@ path = "src/main.rs"
 
 [dependencies]
 anyhow = "1.0.68"
+bitvec = "1.0.1"
 clap = { version = "4.0.32", features = ["derive"] }
 image = "0.24.5"
 thiserror = "1.0.38"
