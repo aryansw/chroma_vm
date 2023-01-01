@@ -1,11 +1,42 @@
 use bitvec::{field::BitField, prelude::*};
 
 pub enum Instruction {
-    ReadSmallValue(Register, u16),
-    ReadFullValue(Register, u32),
-    RegisterCopy(Register, u16),
+    // Moving
+    LoadLow(Register, Immediate),
+    LoadHigh(Register, Immediate),
+    Move(Register, Register),
+    // Arithmetic
+    Add(Register, Register, Register),
+    Subtract(Register, Register, Register),
+    Multiply(Register, Register, Register),
+    Divide(Register, Register, Register),
+    Modulo(Register, Register, Register),
+    And(Register, Register, Register),
+    Or(Register, Register, Register),
+    // Comparisons
+    Equal(Register, Register, Register),
+    NotEqual(Register, Register, Register),
+    GreaterThan(Register, Register, Register),
+    LessThan(Register, Register, Register),
+    GreaterThanEqual(Register, Register, Register),
+    LessThanEqual(Register, Register, Register),
+    // IO / Memory
+    Alloc(Register, Register),
+    MemCopy(Register, Register, Register),
+    CurrAddress(Register),
+    // Jumps and Calls
+    Jump(Register),
+    JumpIf(Register, Register),
+    Call(Register),
+    CallIf(Register, Register),
+    Return,
     Halt,
+    // Stack
+    Push(Register),
+    Pop(Register),
 }
+
+pub type Immediate = u16;
 
 pub struct Register {
     reference: bool,

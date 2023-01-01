@@ -60,23 +60,82 @@ impl Program {
         // The different types of instructions available
         let count = mem::variant_count::<Instruction>() as u8;
         let instr = match opcode % count {
-            0 => {
-                let register = Self::get_hex_slice(hex, 6, 12) as u8;
+            0..=1 => {
+                let r1: Register = Self::get_register(hex, 1);
                 let value = Self::get_hex_slice(hex, 12, 18) as u16;
-                ReadSmallValue(register.into(), value)
-            }
-            1 => {
-                let register = Self::get_hex_slice(hex, 6, 12) as u8;
-                let (x, y) = self.get_next_iptr((x, y));
-                let hex: &Hex = self.program.get_pixel(x, y);
-                let value = Self::get_hex_slice(hex, 0, 24) as u32;
-                self.next_iptr();
-                ReadFullValue(register.into(), value)
+                match opcode % 2 {
+                    0 => LoadLow(r1, value),
+                    1 => LoadHigh(r1, value),
+                    _ => unreachable!(),
+                }
             }
             2 => {
-                let register = Self::get_hex_slice(hex, 6, 12) as u8;
-                let value = Self::get_hex_slice(hex, 12, 18) as u16;
-                Halt
+                let r1: Register = Self::get_register(hex, 1);
+                let r2: Register = Self::get_register(hex, 2);
+                Move(r1, r2)
+            }
+            // Arithmetic and Comparisons
+            3..=15 => {
+                let r1: Register = Self::get_register(hex, 1);
+                let r2: Register = Self::get_register(hex, 2);
+                let r3: Register = Self::get_register(hex, 3);
+                match opcode % 13 {
+                    0 => Add(r1, r2, r3),
+                    1 => Subtract(r1, r2, r3),
+                    2 => Multiply(r1, r2, r3),
+                    3 => Divide(r1, r2, r3),
+                    4 => Modulo(r1, r2, r3),
+                    5 => And(r1, r2, r3),
+                    6 => Or(r1, r2, r3),
+                    7 => Equal(r1, r2, r3),
+                    8 => NotEqual(r1, r2, r3),
+                    9 => GreaterThan(r1, r2, r3),
+                    10 => LessThan(r1, r2, r3),
+                    11 => GreaterThanEqual(r1, r2, r3),
+                    12 => LessThanEqual(r1, r2, r3),
+                    _ => unreachable!(),
+                }
+            }
+            16 => {
+                let r1 = Self::get_register(hex, 1);
+                let r2 = Self::get_register(hex, 1);
+                Alloc(r1, r2)
+            }
+            17 => {
+                let r1: Register = Self::get_register(hex, 1);
+                let r2: Register = Self::get_register(hex, 2);
+                let r3: Register = Self::get_register(hex, 3);
+                MemCopy(r1, r2, r3)
+            }
+            18 => {
+                let r1 = Self::get_register(hex, 1);
+                CurrAddress(r1)
+            }
+            19..=20 => {
+                let r1 = Self::get_register(hex, 1);
+                match opcode % 2 {
+                    0 => Jump(r1),
+                    1 => Call(r1),
+                    _ => unreachable!(),
+                }
+            }
+            21..=22 => {
+                let r1 = Self::get_register(hex, 1);
+                let r2 = Self::get_register(hex, 2);
+                match opcode % 2 {
+                    0 => JumpIf(r1, r2),
+                    1 => CallIf(r1, r2),
+                    _ => unreachable!(),
+                }
+            }
+            23 => Return,
+            24..=25 => {
+                let r1 = Self::get_register(hex, 1);
+                match opcode % 2 {
+                    0 => Push(r1),
+                    1 => Pop(r1),
+                    _ => unreachable!(),
+                }
             }
             _ => Halt,
         };
@@ -86,6 +145,12 @@ impl Program {
 
     fn get_hex_slice(hex: &Hex, start: u8, end: u8) -> u32 {
         hex.0.as_bits::<Lsb0>()[start as usize..end as usize].load::<u32>()
+    }
+
+    fn get_register(hex: &Hex, pos: usize) -> Register {
+        let pos = pos * 6;
+        let bits = hex.0.as_bits::<Lsb0>()[pos..pos + 6].load::<u8>();
+        bits.into()
     }
 
     // First 12 bits for x, last 12 bits for y
