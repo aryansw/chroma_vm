@@ -1,10 +1,11 @@
 use std::mem;
 
+use crate::error::Error::*;
 use crate::instruction::{
     Instruction::{self, *},
     Register,
 };
-use anyhow::Result;
+use anyhow::{Context, Ok, Result};
 use bitvec::prelude::*;
 use image::{ImageBuffer, Rgb};
 
@@ -32,21 +33,21 @@ pub fn run_program(program: Image, input: Option<Image>) -> Result<(Image, Optio
     let mut program = Program::new(program, input);
     loop {
         let instr = program.decode_instr()?;
-        match instr {
-            Instruction::Halt => break,
-            _ => (),
-        }
+        println!("{:?}", instr);
+        program.run_instruction(instr)?;
     }
     Ok((program.program, program.output))
 }
 
 impl Program {
     fn new(program: Image, input: Option<Image>) -> Self {
+        let mut registers = Vec::new();
+        registers.resize_with(32, || Rgb::<u8>::from([0, 0, 0]));
         Self {
             program,
             input,
             output: None,
-            registers: Vec::with_capacity(32),
+            registers,
         }
     }
 
@@ -54,7 +55,10 @@ impl Program {
     fn decode_instr(&mut self) -> Result<Instruction> {
         // Fetch instruction
         let (x, y) = self.iptr();
-        let hex: &Hex = self.program.get_pixel(x, y);
+        let hex: &Hex = match self.program.get_pixel_checked(x, y) {
+            Some(hex) => hex,
+            None => return Ok(Halt),
+        };
         // Take first 6 bits of the hex code
         let opcode = hex[0] >> 2;
         // The different types of instructions available
@@ -143,6 +147,69 @@ impl Program {
         Ok(instr)
     }
 
+    fn run_instruction(&mut self, instr: Instruction) -> Result<()> {
+        match instr {
+            LoadLow(r1, value) => {
+                let high = (value >> 8) as u8;
+                let low = value as u8;
+                if r1.deref {
+                    let (x, y) = Program::get_location(&self.registers[r1.value]);
+                    let hex = self
+                        .program
+                        .get_pixel_mut_checked(x, y)
+                        .ok_or(PixelNotPresent(x, y))?;
+                    hex.0[1] = high | (hex.0[0] & 0b11110000);
+                    hex.0[2] = low;
+                } else {
+                    let val = &mut self.registers[r1.value];
+                    val[1] = high | (val[0] & 0b11110000);
+                    val[2] = low;
+                }
+            }
+            LoadHigh(r1, value) => {
+                let high = (value >> 4) as u8;
+                let low = ((value & 0b1111) << 4) as u8;
+                if r1.deref {
+                    let (x, y) = Program::get_location(&self.registers[r1.value]);
+                    let hex = self
+                        .program
+                        .get_pixel_mut_checked(x, y)
+                        .ok_or(PixelNotPresent(x, y))?;
+                    hex.0[0] = high;
+                    hex.0[1] = low | (hex.0[1] & 0b1111);
+                } else {
+                    let val = &mut self.registers[r1.value];
+                    val[0] = high;
+                    val[1] = low | (val[1] & 0b1111);
+                }
+            }
+            Move(r1, r2) => {
+                let value = if r2.deref {
+                    let (x, y) = Program::get_location(&self.registers[r2.value]);
+                    self.program
+                        .get_pixel_checked(x, y)
+                        .ok_or(PixelNotPresent(x, y))?
+                        .to_owned()
+                } else {
+                    self.registers[r2.value]
+                };
+
+                if r1.deref {
+                    let (x, y) = Program::get_location(&self.registers[r1.value]);
+                    let hex = self
+                        .program
+                        .get_pixel_mut_checked(x, y)
+                        .ok_or(PixelNotPresent(x, y))?;
+                    *hex = value;
+                } else {
+                    self.registers[r1.value] = value;
+                }
+            }
+            _ => (),
+        }
+        Ok(())
+    }
+
     fn get_hex_slice(hex: &Hex, start: u8, end: u8) -> u32 {
         hex.0.as_bits::<Lsb0>()[start as usize..end as usize].load::<u32>()
     }
@@ -153,12 +220,16 @@ impl Program {
         bits.into()
     }
 
-    // First 12 bits for x, last 12 bits for y
-    fn iptr(&self) -> (u32, u32) {
-        let bytes = self.registers[31].0;
+    fn get_location(hex: &Hex) -> (u32, u32) {
+        let bytes = hex.0;
         let x = (bytes[0] as u32) << 4 | (bytes[1] as u32) >> 4;
         let y = ((bytes[1] as u32) & 0b1111) << 8 | (bytes[2] as u32);
         (x, y)
+    }
+
+    // First 12 bits for x, last 12 bits for y
+    fn iptr(&self) -> (u32, u32) {
+        Program::get_location(&self.registers[31])
     }
 
     // Update the instruction pointer to the next instruction

@@ -1,5 +1,6 @@
 use bitvec::{field::BitField, prelude::*};
 
+#[derive(Debug, Clone, Copy)]
 pub enum Instruction {
     // Moving
     LoadLow(Register, Immediate),
@@ -38,16 +39,17 @@ pub enum Instruction {
 
 pub type Immediate = u16;
 
+#[derive(Debug, Clone, Copy)]
 pub struct Register {
-    reference: bool,
-    value: u8,
+    pub deref: bool,
+    pub value: usize,
 }
 
 impl Into<Register> for u8 {
     fn into(self) -> Register {
         let (x, y) = self.view_bits::<Lsb0>().split_at(1);
         Register {
-            reference: x[0],
+            deref: x[0],
             value: y.load_le(),
         }
     }
